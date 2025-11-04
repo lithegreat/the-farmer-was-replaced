@@ -1,362 +1,93 @@
-# The Farmer Was Replaced - 自动化农场脚本
+# The Farmer Was Replaced Automation Toolkit
 
-这是我在玩 Steam 游戏 [The Farmer Was Replaced](https://store.steampowered.com/app/2060160/_/) 时编写的自动化脚本集合。
+中文: [README.zh.md](README.zh.md)
 
-## 🎮 关于游戏
+## Overview
+This repository contains automation scripts for the Steam puzzle game [The Farmer Was Replaced](https://store.steampowered.com/app/2060160/_/). The code is written in Python syntax so that it can be edited comfortably, but it targets the game's in-engine language. The bundled `__builtins__.py` file provides type stubs for the game API to make authoring and linting easier in standard editors.
 
-**The Farmer Was Replaced** 是一款编程解谜游戏，玩家需要通过编写 Python 代码来自动化管理农场，种植作物、优化资源、解锁新技术。游戏结合了编程学习和策略优化，非常适合喜欢自动化和算法优化的玩家。
-
-## 📁 项目结构
-
+## Repository Layout
 ```
-Save0/
-├── main.py                 # 主程序入口
-├── smart_priority.py       # 智能优先级控制器（推荐使用）
-├── config.py               # 🎮 用户配置文件（优先级和阈值）
-├── config.example.py       # 配置文件示例
-├── utils.py                # 通用工具函数（移动优化、耕地等）
-├── crop_grass.py           # 草地收割（获取干草）
-├── crop_trees.py           # 树木种植（棋盘模式，避免生长惩罚）
-├── crop_carrots.py         # 胡萝卜种植（基础资源）
-├── crop_pumpkins.py        # 南瓜种植（巨型南瓜策略，n³产量）
-├── crop_sunflowers.py      # 向日葵种植（级联收获，5倍能量）
-├── crop_cactus.py          # 仙人掌种植（排序收获，n²产量）
-├── crop_mix.py             # 混合种植（伴生植物，5倍产量）
-├── crop_weird.py           # 奇异物质收集（感染策略）
-├── crop_dinosaur.py        # 🦕 恐龙养殖（n²骨头收益）
-├── crop_maze.py            # 🌳 迷宫探索（n²金币收益）
-├── DINOSAUR.md             # 恐龙养殖详细指南
-└── .gitignore              # Git 忽略配置
+.
+├── __builtins__.py        # Type hints for the in-game API
+├── config.example.py      # Sample configuration for crop priority and thresholds
+├── crop_cactus.py         # Sorted cactus harvesting routine
+├── crop_carrots.py        # Carrot farming helper
+├── crop_dinosaur.py       # Dinosaur minigame automation
+├── crop_grass.py          # Grass harvesting loop
+├── crop_maze.py           # Hedge maze solver and gold farming
+├── crop_mix.py            # Companion planting automation
+├── crop_pumpkins.py       # Giant pumpkin management
+├── crop_sunflowers.py     # Power-focused sunflower harvesting
+├── crop_trees.py          # Checkerboard tree farming
+├── crop_weird.py          # Weird substance collection strategies
+├── smart_priority.py      # Priority-based crop dispatcher
+├── utils.py               # Shared navigation and farming helpers
+└── README.zh.md           # Chinese documentation
 ```
 
-## 🚀 核心功能
+## Smart Priority Controller (`smart_priority.py`)
+The main entry point is an infinite control loop that evaluates resources and plants the most appropriate crop.
+- Reads `PRIORITY` and `THRESHOLDS` from `config.py` (copy `config.example.py` to create it).
+- Tracks power, carrots, wood, pumpkins, hay, fertilizer, water, cactus, weird substance, bones, and gold before each decision.
+- Scores each configured crop based on current shortages and emergency thresholds (for example, sunflowers take precedence when power is low).
+- Validates that enough inputs are available (checks costs via `get_cost` and unlock status for mazes).
+- Falls back to harvesting grass when nothing else is affordable.
 
-### 1. **智能优先级系统** (`smart_priority.py`)
+## Utility Helpers (`utils.py`)
+A small helper module to streamline movement and field maintenance.
+- `move_to(x, y)` walks the drone to a coordinate, choosing the shorter wrap-around path on the toroidal map.
+- `tilling()` prepares soil when needed, keeping ground states consistent between modules.
+- `water()` and `water_full()` help maintain optimal moisture levels.
 
-自动化农场管理系统，根据资源状态智能选择最佳作物。
+## Crop Modules
+Each `crop_*.py` file focuses on a single crop or mechanic so it can be called independently or through the smart controller.
+- `crop_grass.farm_grass()` clears the board, restores grassland, and harvests hay quickly.
+- `crop_trees.farm_trees()` plants trees in a checkerboard pattern to avoid the 16x adjacency growth penalty and waters them while waiting.
+- `crop_carrots.farm_carrots()` tills soil, replants carrots, and waters immediately for the five-times growth boost.
+- `crop_pumpkins.farm_pumpkins()` keeps the field full of pumpkins, tracks withered tiles, and replants only the affected positions until a giant pumpkin is ready.
+- `crop_sunflowers.farm_sunflowers()` records petal counts at planting time, maintains high water levels, and harvests sunflowers in descending petal order to retain the power multiplier.
+- `crop_cactus.farm_cactus()` sorts cactus sizes row by row and column by column using bubble swaps, then harvests from the origin to secure the full squared reward.
+- `crop_mix.farm_mixed(main_crop)` leverages companion planting: it records companion requirements, plants supporting crops where demand is highest, and cleans up after harvest.
 
-**特点：**
-- 🎯 用户自定义优先级列表
-- 📊 动态资源检查
-- ⚡ 紧急情况自动响应（能量/资源短缺）
-- 🔄 自动循环种植
+## Special Modules
+- `crop_weird.py` provides three entry points: `farm_weird_substance()` for fast grass-based infection, `farm_weird_substance_advanced()` for fertilizer-boosted carrots, and `farm_weird_substance_chain()` that uses weird substance to propagate infections across the farm.
+- `crop_dinosaur.py` automates the dinosaur hat minigame. It tracks the tail path to avoid collisions, navigates via Manhattan distance with fallback detours, and includes `farm_dinosaur_optimal()` and `farm_dinosaur_efficient()` variants to match your cactus (apple) budget.
+- `crop_maze.py` grows hedge mazes, solves them using right-hand or left-hand rules (with a `measure`-guided fallback), and supports reuse counts or size adjustments through `farm_maze_optimal()` and `farm_maze_smart()`.
 
-**使用方法：**
+## Getting Started
+1. Copy the sample configuration: `Copy-Item config.example.py config.py` in PowerShell (`cp config.example.py config.py` on macOS/Linux).
+2. Edit `config.py` to set up your preferred `PRIORITY` order and resource `THRESHOLDS`. Each entry is a dictionary describing the crop name and optional parameters such as maze size or dinosaur mode.
+3. Load the script in-game and run `smart_priority.py` to let the controller loop manage planting decisions. You can also import an individual `crop_*` module to farm a specific resource on demand.
+
+Example configuration snippet:
 ```python
-# 编辑 PRIORITY 列表设置优先级
 PRIORITY = [
-    {"crop": "mixed", "main": Entities.Tree},   # 混合种植
-    {"crop": "sunflowers"},                     # 向日葵
-    {"crop": "pumpkins"},                       # 南瓜
-    ...
+    {"crop": "sunflowers"},
+    {"crop": "mixed", "main": Entities.Tree},
+    {"crop": "pumpkins"},
+    {"crop": "maze", "mode": "smart", "size": 5},
 ]
 
-# 调整资源阈值
 THRESHOLDS = {
-    "power_low": 100,        # 能量低于此值优先种向日葵
-    "power_safe": 200,       # 能量安全值
-    "carrot_min": 2000,      # 胡萝卜最低储备
-    ...
+    "power_low": 100,
+    "power_safe": 200,
+    "carrot_min": 2000,
+    "wood_min": 3000,
+    "hay_min": 1000,
+    "fertilizer_min": 5,
 }
 ```
 
-### 2. **作物模块**
+## Strategy Highlights
+- Giant Pumpkins: the withered-tile watch list avoids scanning the entire board every cycle, so the script only replants where needed.
+- Sunflowers: storing initial petal counts enables harvesting only the maximum petals in each pass, preserving the five-times power bonus.
+- Sorted Cactus: row-first and column-second bubble passes ensure the final layout stays ordered without unnecessary travel.
+- Companion Planting: demand aggregation picks the companion crop that benefits the most main plots before the cleanup phase.
+- Dinosaurs: tail tracking and Manhattan navigation keep the drone moving safely until the farm fills or apples run out.
+- Mazes: resource checks and reuse counters prevent wasting weird substance and adapt to current upgrade levels.
 
-每种作物都有独立的优化模块：
+## Contributing
+Suggestions and improvements are welcome. Open an issue or submit a pull request with any refinements, bug fixes, or new farming strategies.
 
-#### 🌾 **草地** (`crop_grass.py`)
-- 最快收割周期
-- 自动土地转换
-- 获取干草资源
-
-#### 🌳 **树木** (`crop_trees.py`)
-- 棋盘种植模式（避免16倍生长惩罚）
-- 每棵树5份木材
-- 优化的邻接规避策略
-
-#### 🥕 **胡萝卜** (`crop_carrots.py`)
-- 快速种植与收获
-- 自动清理其他作物
-- 基础资源生产
-
-#### 🎃 **南瓜** (`crop_pumpkins.py`)
-- 巨型南瓜策略（n×n合并→n³产量，n≥6→n²×6）
-- 枯萎南瓜追踪优化
-- 只检查枯萎位置，效率提升80%
-
-#### 🌻 **向日葵** (`crop_sunflowers.py`)
-- 级联收获策略（花瓣数从大到小）
-- 每株都获得5倍能量加成
-- 600%能量提升
-- 种植时记录花瓣数，避免重复测量
-
-#### 🌵 **仙人掌** (`crop_cactus.py`)
-- 高级排序算法（逐行逐列冒泡排序）
-- 从左下角递归收获（n²产量）
-- 排序完成检测，减少冗余操作
-- 只检查第一个位置的成熟状态
-
-#### 🌺 **混合种植** (`crop_mix.py`)
-- 伴生植物机制（5倍产量加成）
-- 支持 Bush/Tree/Carrot/Grass
-- 自动获取伴生需求并优化种植
-- Tree 自动使用棋盘模式
-
-#### 🧪 **奇异物质** (`crop_weird.py`)
-三种收集策略：
-- **基础策略**：草地+肥料，快速收获
-- **高产策略**：胡萝卜+多次施肥，最大化产量
-- **连锁策略**：利用奇异物质扩散感染，节省肥料
-
-#### 🦕 **恐龙养殖** (`crop_dinosaur.py`)
-三种养殖模式：
-- **最优模式**：根据仙人掌库存自动选择农场大小
-- **填满模式**：S形遍历填满整个当前农场（最大收益）
-- **高效模式**：只吃指定数量苹果（快速获取骨头）
-- 收益：尾巴长度的平方（n²根骨头）
-- ⚠️ **重要**：恐龙模式下世界边界不可穿越（非环形世界）
-
-#### 🌳 **迷宫探索** (`crop_maze.py`)
-三种探索策略：
-- **最优模式**：根据奇异物质库存自动决定重用次数
-- **智能模式**：指定迷宫大小以优化资源利用
-- **基础模式**：手动控制重用次数
-- 三种解法：右手法则、左手法则、measure()导航
-- 收益：n²金币（可重用叠加）
-
-### 3. **优化工具** (`utils.py`)
-
-#### 🎯 **移动优化**
-```python
-move_to(x, y)  # 利用环形世界，自动选择最短路径
-```
-- 考虑边界环绕
-- 减少30%移动距离
-
-#### 🌱 **自动耕地**
-```python
-tilling()  # 自动处理土地转换
-```
-
-## 🎯 优化策略详解
-
-### 南瓜优化 - 枯萎追踪
-```python
-# 只记录枯萎南瓜位置
-withered_positions = [(x, y), ...]
-
-# 只检查枯萎位置，不扫描全场
-for pos in withered_positions:
-    check_and_replant(pos)
-```
-**效果**：6×6场地效率提升约80%
-
-### 向日葵优化 - 级联收获
-```python
-# 种植时记录花瓣数
-petal_map = {(x, y): petals, ...}
-
-# 按花瓣数从大到小收获
-while petal_map:
-    harvest_max_petals()
-```
-**效果**：600%能量提升（15→14→13→12...每株都是5倍）
-
-### 仙人掌优化 - 智能排序
-```python
-# 逐行完成排序
-for each row:
-    bubble_sort_until_complete()
-
-# 逐列完成排序（不破坏行顺序）
-for each column:
-    bubble_sort_until_complete()
-```
-**效果**：减少40%排序轮数，减少50%长距离移动
-
-### 混合种植优化 - 伴生策略
-```python
-# 自动获取伴生需求
-companion_type, companion_pos = get_companion()
-
-# 优化种植位置，满足多个主作物需求
-plant_best_companion(position_demand)
-```
-**效果**：5倍产量加成
-
-### 恐龙养殖优化 - S形遍历
-```python
-# ⚠️ 重要：恐龙模式下世界边界不可穿越（非环形）
-# 使用直接的 move() 而不是 utils.move_to()
-
-# S形路径遍历农场，确保尾巴填满每个格子
-y = 0
-while y < size:
-    if y % 2 == 0:
-        # 偶数行：从左到右
-        x = 0
-        while x < size:
-            success = move_to_safe(x, y)  # 直线移动
-            if not success:
-                break  # 被尾巴阻挡
-            x = x + 1
-    else:
-        # 奇数行：从右到左（S形）
-        x = size - 1
-        while x >= 0:
-            success = move_to_safe(x, y)
-            if not success:
-                break
-            x = x - 1
-    y = y + 1
-
-# move_to_safe() 只使用 move(方向)，不计算环形路径
-```
-**效果**：
-- 10×10农场 = 100格 = 10,000根骨头
-- 自动根据仙人掌库存选择最优农场大小
-- 每吃一个苹果，移动速度提升3%
-- ⚠️ 边界不可穿越，S形遍历避免长距离移动
-
-### 迷宫探索优化 - 右手法则
-```python
-# 方向数组（顺时针）
-directions = [North, East, South, West]
-direction_index = 0
-
-# 右手法则：右转 > 直走 > 左转 > 后转
-while not at_treasure():
-    # 尝试右转
-    right_index = (direction_index + 1) % 4
-    if can_move(directions[right_index]):
-        direction_index = right_index
-        move(directions[direction_index])
-    # ... 依次尝试其他方向
-
-# 或使用 measure() 直接导航
-treasure_x, treasure_y = measure()
-navigate_to(treasure_x, treasure_y)
-```
-**效果**：
-- 5×5迷宫 = 25金币
-- 10×10迷宫 = 100金币
-- 重用10次 = 11倍收益（例如：10×10重用10次 = 1,100金币）
-- 右手法则保证找到宝藏（无循环迷宫）
-
-## 🔧 使用指南
-
-### 快速开始
-
-1. **配置你的策略**
-   ```bash
-   # 首次使用：复制配置示例文件
-   cp config.example.py config.py
-   
-   # 然后编辑 config.py 设置你的优先级
-   ```
-
-2. **自定义优先级**
-   ```python
-   # 编辑 config.py 中的 PRIORITY 列表
-   PRIORITY = [
-       {"crop": "sunflowers"},                     # 优先种向日葵
-       {"crop": "mixed", "main": Entities.Bush},   # 混合种植灌木
-       {"crop": "pumpkins"},                       # 南瓜
-   ]
-   ```
-
-3. **运行智能控制器**
-   ```python
-   # 运行 smart_priority.py
-   # 系统会自动根据资源状态选择最佳作物
-   ```
-
-3. **单独运行作物模块**
-   ```python
-   import crop_sunflowers
-   crop_sunflowers.farm_sunflowers()
-   ```
-
-### 高级配置
-
-**在 `config.py` 中配置：**
-
-**奇异物质策略选择：**
-```python
-{"crop": "weird", "strategy": "basic"}     # 快速策略
-{"crop": "weird", "strategy": "advanced"}  # 高产策略
-{"crop": "weird", "strategy": "chain"}     # 节省肥料
-```
-
-**混合种植作物选择：**
-```python
-{"crop": "mixed", "main": Entities.Bush}    # 灌木（高木材）
-{"crop": "mixed", "main": Entities.Tree}    # 树木（棋盘模式）
-{"crop": "mixed", "main": Entities.Carrot}  # 胡萝卜
-```
-
-**恐龙养殖模式：**
-```python
-{"crop": "dinosaur", "mode": "optimal"}     # 自动最优（根据仙人掌库存）
-{"crop": "dinosaur", "mode": "full"}        # 填满当前农场（最大收益）
-{"crop": "dinosaur", "mode": "efficient", "apples": 50}  # 指定苹果数
-```
-
-**迷宫探索模式：**
-```python
-{"crop": "maze", "mode": "optimal"}         # 自动最优（根据奇异物质库存）
-{"crop": "maze", "mode": "smart", "size": 5}  # 指定5x5迷宫
-{"crop": "maze", "reuse": 5}                # 重用迷宫5次
-```
-
-**资源阈值调整：**
-```python
-THRESHOLDS = {
-    "power_low": 100,         # 能量低于此值优先种向日葵
-    "power_safe": 200,        # 能量安全值
-    "carrot_min": 2000,       # 胡萝卜最低储备
-    "wood_min": 3000,         # 木材最低储备
-    "hay_min": 1000,          # 干草最低储备
-    "fertilizer_min": 5,      # 肥料最低储备
-}
-```
-
-## 🎓 学习要点
-
-这个项目展示了以下编程和算法优化技巧：
-
-1. **算法优化**
-   - 冒泡排序优化（提前退出、逐行完成）
-   - 路径优化（环形世界最短路径）
-   - 状态追踪（枯萎位置、排序状态）
-
-2. **游戏机制理解**
-   - 树木邻接惩罚（4方向×2倍=16倍）
-   - 向日葵5倍机制（≥10株，花瓣数最大）
-   - 伴生植物加成（5倍产量）
-
-3. **模块化设计**
-   - 每种作物独立模块
-   - 统一的工具函数
-   - 智能优先级系统
-
-4. **资源管理**
-   - 动态成本计算（get_cost）
-   - 紧急情况响应
-   - 收益评分系统
-
-## 🎮 游戏链接
-
-[Steam: The Farmer Was Replaced](https://store.steampowered.com/app/2060160/_/)
-
-## 📄 许可
-
-个人学习项目，代码可自由使用和修改。
-
-## 🤝 贡献
-
-欢迎提出优化建议和改进方案！
-
----
-
-**Enjoy farming! 🌾**
+## License
+This project is maintained as a personal learning aid. Feel free to reuse or modify the scripts at your own risk.
